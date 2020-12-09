@@ -5,6 +5,10 @@ from selenium import webdriver
 import time
 import json
 import sys
+import cmd
+
+def diff(first, second):
+    return [item for item in first if item not in second]
 
 # pull user vars from keys.json
 def read_keys():
@@ -85,7 +89,7 @@ if __name__ == "__main__":
         num_followers = int(sys.argv[2])
         num_following = int(sys.argv[3])
     else:
-        print("Argument Error: please enter 3 args (account, num_followers, num_following). Exiting.")
+        print("argument error: please enter 3 args (account, num_followers, num_following). exiting.")
         exit(1)
 
     # read in user variables
@@ -94,24 +98,59 @@ if __name__ == "__main__":
     # create web driver
     driver = webdriver.Chrome(executable_path=driver_path)
 
+    # scraping
     try:
         login(driver, username, password)
-        print("account: ", account)
+        print("account: ", account, "\n")
 
         # get followers for the account
-        # followers = []
-        print("followers:")
+        followers_list = []
+        print("scraping followers...\n")
         for count, follower in enumerate(scrape_followers(driver, account=account), 1):
-            print("\t{:>3}: {}".format(count, follower))
+            followers_list.append(follower)
             if count >= num_followers:
                 break
 
         # get following for the account
-        print("following:")
+        following_list = []
+        print("scraping following...\n")
         for count, following in enumerate(scrape_following(driver, account=account), 1):
-            print("\t{:>3}: {}".format(count, following))
+            following_list.append(following)
             if count >= num_following:
                 break
-
     finally:
         driver.quit()
+
+    ## ANALYTICS
+    print("analyzing followers...\n")
+
+    print("1. followers:", len(followers_list), "\n")
+    print("2. following:", len(following_list), "\n")
+
+    # check for people who don't follow back
+    rude = diff(set(following_list), set(followers_list))
+    print("3. not following the account back:", len(rude))
+    for r in rude: print(r)
+
+    # check for people who unfollowed recently (since last cache)
+    with open("followers_cache.txt") as f:
+        cache = f.read().splitlines()
+
+    if len(cache) == 0: # first time running? cache is empty
+        print("\n4. you have no cache. can't provide recent unfollowers.\n")
+    else:
+        unfollowers = diff(set(cache), set(followers_list))
+        print("\n4. unfollowers since last cache:", len(unfollowers))
+        for u in unfollowers: print(u)
+
+    # copy followers_list into followers_cache.txt?
+    answer = str(input("would you like to cache this data? y/n: "))
+
+    if answer == "y": # copy into cache
+        print("copying into cache...")
+        with open('followers_cache.txt', 'w') as f:
+            for item in followers_list:
+                f.write("%s\n" % item)
+        print("data copied to cache. see you later!")
+    else:
+        print("you said no, see you later!")
