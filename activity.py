@@ -1,37 +1,117 @@
-#!/usr/bin/python
-# analyze instagram follower/following lists
-# must copy/paste follower/following module content into respective text files
+import itertools
 
-def diff(first, second):
-    return [item for item in first if item not in second]
+from explicit import waiter, XPATH
+from selenium import webdriver
+import time
+import json
+import sys
 
-# read in text files
-with open("followers.txt") as f:
-    followers = f.readlines()
+# pull user vars from keys.json
+def read_keys():
+    with open('keys.json') as file:
+      keys = json.load(file)
 
-with open("following.txt") as f:
-    following = f.readlines()
+    username = keys["username"]
+    password = keys["password"]
+    driver_path = keys["driver_path"]
 
-with open("followers_cache.txt") as f:
-    older = f.readlines()
+    return username, password, driver_path
 
-# extract "profile pictures" lines and substring for usernames
-sub = "profile picture"
-followers = [s[:-19] for s in followers if sub in s]
-following = [s[:-19] for s in following if sub in s]
-older = [s[:-19] for s in older if sub in s]
+# log in to instagram
+def login(driver, username, password):
+    # load page
+    driver.get("https://www.instagram.com/accounts/login/")
 
-print("analyzing followers...\n")
+    # login
+    waiter.find_write(driver, "//div/label/input[@name='username']", username, by=XPATH)
+    waiter.find_write(driver, "//div/label/input[@name='password']", password, by=XPATH)
+    waiter.find_element(driver, "//div/button[@type='submit']", by=XPATH).click()
 
-print("1. followers:", len(followers), "\n")
-print("2. following:", len(following), "\n")
+    # wait for the page to load
+    time.sleep(5)
+    print("login complete")
 
-# check for people who don't follow me back
-rude = diff(set(following), set(followers))
-print("3. not following back:", len(rude))
-for r in rude: print(r)
+# scrape followers modal
+def scrape_followers(driver, account):
+    # load account page
+    driver.get("https://www.instagram.com/{0}/".format(account))
 
-# check for people unfollowed me
-unfollowers = diff(set(older), set(followers))
-print("\n4. recently unfollowed:", len(unfollowers))
-for u in unfollowers: print(u)
+    # click followers link
+    waiter.find_element(driver, "//a[@href='/{}/followers/']".format(account), by=XPATH).click()
+
+    # wait for followers modal to load
+    waiter.find_element(driver, "//div[@role='dialog']", by=XPATH)
+
+    # keep scrolling in a loop until you've hit the desired number of followers
+    follower_css = "ul div li:nth-child({}) a.notranslate"  # Taking advange of CSS's nth-child functionality
+    for group in itertools.count(start=1, step=12):
+        for follower_index in range(group, group + 12):
+            yield waiter.find_element(driver, follower_css.format(follower_index)).text
+
+        # instagram loads followers 12 at a time. find the last follower element
+        # and scroll it into view, forcing instagram to load another 12. second check
+        # here in case element has gone stale
+        last_follower = waiter.find_element(driver, follower_css.format(follower_index))
+        driver.execute_script("arguments[0].scrollIntoView();", last_follower)
+
+# scrape following modal
+def scrape_following(driver, account):
+    # load account page
+    driver.get("https://www.instagram.com/{0}/".format(account))
+
+    # click following link
+    waiter.find_element(driver, "//a[@href='/{}/following/']".format(account), by=XPATH).click()
+
+    # wait for the following modal to load
+    waiter.find_element(driver, "//div[@role='dialog']", by=XPATH)
+
+    # keep scrolling in a loop until you've hit the desired number of following
+    follower_css = "ul div li:nth-child({}) a.notranslate"  # Taking advange of CSS's nth-child functionality
+    for group in itertools.count(start=1, step=12):
+        for follower_index in range(group, group + 12):
+            yield waiter.find_element(driver, follower_css.format(follower_index)).text
+
+        # instagram loads following 12 at a time. find the last following element
+        # and scroll it into view, forcing instagram to load another 12. second check
+        # here in case element has gone stale
+        last_follower = waiter.find_element(driver, follower_css.format(follower_index))
+        driver.execute_script("arguments[0].scrollIntoView();", last_follower)
+
+
+if __name__ == "__main__":
+    # read in account of interest details
+    if (len(sys.argv) == 4):
+        account = sys.argv[1]
+        num_followers = int(sys.argv[2])
+        num_following = int(sys.argv[3])
+    else:
+        print("Argument Error: please enter 3 args (account, num_followers, num_following). Exiting.")
+        exit(1)
+
+    # read in user variables
+    username, password, driver_path = read_keys()
+
+    # create web driver
+    driver = webdriver.Chrome(executable_path=driver_path)
+
+    try:
+        login(driver, username, password)
+        print("account: ", account)
+
+        # get followers for the account
+        # followers = []
+        print("followers:")
+        for count, follower in enumerate(scrape_followers(driver, account=account), 1):
+            print("\t{:>3}: {}".format(count, follower))
+            if count >= num_followers:
+                break
+
+        # get following for the account
+        print("following:")
+        for count, following in enumerate(scrape_following(driver, account=account), 1):
+            print("\t{:>3}: {}".format(count, following))
+            if count >= num_following:
+                break
+
+    finally:
+        driver.quit()
