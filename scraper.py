@@ -5,6 +5,16 @@ from selenium import webdriver
 import time
 import os
 
+# pull user vars from keys.json
+def read_keys():
+    with open('keys.json') as file:
+      keys = json.load(file)
+
+    username = keys["username"]
+    password = keys["password"]
+    driver_path = keys["driver_path"]
+
+    return username, password, driver_path
 
 def login(driver, username, password):
     # load page
@@ -65,17 +75,16 @@ def scrape_following(driver, account):
 
 
 if __name__ == "__main__":
-    # creds for testing
-    username = ""  # <username here>
-    password = ""  # <password here>
+    # read in user variables
+    username, password, driver_path = read_keys()
 
     # details on account of interest
     account = '' # <account of interest here>
     num_followers = 1; # <account number followers here>
     num_following = 1; # <account number following here>
 
-    # create web driver (may need to add executable_path parameter)
-    driver = webdriver.Chrome()
+    # create web driver
+    driver = webdriver.Chrome(executable_path=driver_path)
 
     try:
         login(driver, username, password)
