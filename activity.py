@@ -31,9 +31,9 @@ def login(driver, username, password):
     waiter.find_write(driver, "//div/label/input[@name='password']", password, by=XPATH)
     waiter.find_element(driver, "//div/button[@type='submit']", by=XPATH).click()
 
-    # wait for the page to load
+    # wait for the page to load. increase from 5 if internet is slow
     time.sleep(5)
-    print("login complete")
+    print("login complete.\n")
 
 # scrape followers modal
 def scrape_followers(driver, account):
@@ -118,26 +118,31 @@ if __name__ == "__main__":
         driver.quit()
 
     ## ANALYTICS
-    print("analyzing followers...\n")
+    print("analyzing activity for {}...\n".format(account))
 
     print("1. followers:", len(followers_list), "\n")
     print("2. following:", len(following_list), "\n")
 
+    # check for people account doesn't follow back
+    nope = diff(set(followers_list), set(following_list))
+    print("3. {} not following back:".format(account), len(nope))
+    # for n in nope: print(n) # comment/uncomment to print list
+
     # check for people who don't follow back
     rude = diff(set(following_list), set(followers_list))
-    print("3. not following the account back:", len(rude))
-    for r in rude: print(r)
+    print("\n4. not following {} back:".format(account), len(rude))
+    for r in rude: print(r) # comment/uncomment to print list
 
     # check for people who unfollowed recently (since last cache)
     with open("followers_cache.txt") as f:
         cache = f.read().splitlines()
 
     if len(cache) == 0: # first time running? cache is empty
-        print("\n4. you have no cache. can't provide recent unfollowers.\n")
+        print("\n5. you have no cache. can't provide recent unfollowers.\n")
     else:
         unfollowers = diff(set(cache), set(followers_list))
-        print("\n4. unfollowers since last cache:", len(unfollowers))
-        for u in unfollowers: print(u)
+        print("\n5. unfollowers since last cache:", len(unfollowers))
+        # for u in unfollowers: print(u) # comment/uncomment to print list
 
     # copy followers_list into followers_cache.txt?
     answer = str(input("would you like to cache this data? y/n: "))
