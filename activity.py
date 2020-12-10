@@ -1,7 +1,7 @@
-import itertools
-
 from explicit import waiter, XPATH
 from selenium import webdriver
+
+import itertools
 import time
 import json
 import sys
@@ -84,13 +84,9 @@ def scrape_following(driver, account):
 
 if __name__ == "__main__":
     # read in account of interest details
-    if (len(sys.argv) == 4):
-        account = sys.argv[1]
-        num_followers = int(sys.argv[2])
-        num_following = int(sys.argv[3])
-    else:
-        print("argument error: please enter 3 args (account, num_followers, num_following). exiting.")
-        exit(1)
+    account = str(input("account name: "))
+    num_followers = int(input("account num followers: "))
+    num_following = int(input("account num following: "))
 
     # read in user variables
     username, password, driver_path = read_keys()
