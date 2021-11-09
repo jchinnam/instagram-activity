@@ -1,6 +1,8 @@
 # instagram-activity
 Web scraping & scripting to analyze instagram follower/following activity. See [here](docs.md) for implementation docs.
 
+Updated as of Nov 2021. May not work on later versions of instagram.com. May not work on accounts with very large followings, due to Instagram limitations on rendering the lists.
+
 ### Setup
 ```bash
 $ git clone <repo>
@@ -17,13 +19,14 @@ Login credentials are necessary for scraping Instagram. `username` & `password` 
 ### Usage
 ```bash
 $ python activity.py
-account name: # enter account username
+target account name: # enter account username
+mode? choose one: manual / scrape: # enter "manual" or "scrape"
 account num followers: # enter account number of followers
 account num following: # enter account number of following
 ```
 
 ##### Wiping the cache
-This script can "cache" a list of followers, to track activity over time. To wipe the cache, delete the contents of `followers_cache.txt`. For more on the cache, see [here](docs.md#the-cache).
+This script can "cache" a list of followers, to track activity over time. To "wipe the cache", delete the contents of `followers_cache.txt`. For more on the cache, see [here](docs.md#the-cache).
 
 ### Analytics
 - followers that account of interest doesn't follow back
@@ -32,7 +35,5 @@ This script can "cache" a list of followers, to track activity over time. To wip
 
 ### Dependencies
 Running with
-- ChromeDriver 87.0.4280.88 for Mac
+- ChromeDriver 95.0.4638.69 for Mac, downloads [here](https://chromedriver.chromium.org/downloads)
 - explicit 0.1.3
-
-Note: scraping designed as of Dec 2020. May not work on later versions of instagram.com
