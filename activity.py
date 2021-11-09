@@ -1,5 +1,9 @@
 from explicit import waiter, XPATH
 from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 import itertools
 import time
@@ -7,11 +11,18 @@ import json
 import sys
 import cmd
 
+# resources:
+# https://www.geeksforgeeks.org/how-to-scroll-down-followers-popup-in-instagram/
+# https://stackoverflow.com/questions/37233803/how-to-web-scrape-followers-from-instagram-web-browser
+
 def diff(first, second):
     return [item for item in first if item not in second]
 
-# pull user vars from keys.json
+
 def read_keys():
+    '''
+    Reads user vars from keys.json.
+    '''
     with open('keys.json') as file:
       keys = json.load(file)
 
@@ -21,8 +32,11 @@ def read_keys():
 
     return username, password, driver_path
 
-# log in to instagram
+
 def login(driver, username, password):
+    '''
+    Logs into instagram.
+    '''
     # load page
     driver.get("https://www.instagram.com/accounts/login/")
 
@@ -35,87 +49,101 @@ def login(driver, username, password):
     time.sleep(5)
     print("login complete.\n")
 
-# scrape followers modal
-def scrape_followers(driver, account):
+
+def scrape(driver, account, type, max):
+    '''
+    Scrapes an instagram page follower or following modal.
+    Parameters:
+        driver: web driver
+        account: instagram account of interest
+        type: modal type (i.e. "follower" or "following")
+        max: max count of followers/followed to scrape
+    Returns:
+        generator of users (either followers or followed)
+    '''
+
     # load account page
     driver.get("https://www.instagram.com/{0}/".format(account))
 
-    # click followers link
-    waiter.find_element(driver, "//a[@href='/{}/followers/']".format(account), by=XPATH).click()
+    # grab modal
+    driver.find_element_by_partial_link_text(type).click()
+    followers_modal = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, "//div[@class='isgrP']")))
 
-    # wait for followers modal to load
-    waiter.find_element(driver, "//div[@role='dialog']", by=XPATH)
-
-    # keep scrolling in a loop until you've hit the desired number of followers
+    # scroll through list
+    follower_index = 1
     follower_css = "ul div li:nth-child({}) a.notranslate"  # Taking advange of CSS's nth-child functionality
-    for group in itertools.count(start=1, step=12):
-        for follower_index in range(group, group + 12):
-            yield waiter.find_element(driver, follower_css.format(follower_index)).text
+    while follower_index < num_followers:
+        driver.execute_script(
+            'arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;',
+          followers_modal)
 
-        # instagram loads followers 12 at a time. find the last follower element
-        # and scroll it into view, forcing instagram to load another 12. second check
-        # here in case element has gone stale
-        last_follower = waiter.find_element(driver, follower_css.format(follower_index))
-        driver.execute_script("arguments[0].scrollIntoView();", last_follower)
+        yield waiter.find_element(driver, follower_css.format(follower_index)).text
+        follower_index += 1
 
-# scrape following modal
-def scrape_following(driver, account):
-    # load account page
-    driver.get("https://www.instagram.com/{0}/".format(account))
 
-    # click following link
-    waiter.find_element(driver, "//a[@href='/{}/following/']".format(account), by=XPATH).click()
+def manual():
+    '''
+    Reads follower and following lists manually from text files.
+    '''
+    print("reading in followers.txt...\n")
+    with open("followers.txt") as f:
+        followers = f.readlines()
 
-    # wait for the following modal to load
-    waiter.find_element(driver, "//div[@role='dialog']", by=XPATH)
+    print("reading in following.txt...\n")
+    with open("following.txt") as f:
+        following = f.readlines()
 
-    # keep scrolling in a loop until you've hit the desired number of following
-    follower_css = "ul div li:nth-child({}) a.notranslate"  # Taking advange of CSS's nth-child functionality
-    for group in itertools.count(start=1, step=12):
-        for follower_index in range(group, group + 12):
-            yield waiter.find_element(driver, follower_css.format(follower_index)).text
+    # extract "profile pictures" lines and substring for usernames
+    sub = "profile picture"
+    followers = [s[:-19] for s in followers if sub in s]
+    following = [s[:-19] for s in following if sub in s]
 
-        # instagram loads following 12 at a time. find the last following element
-        # and scroll it into view, forcing instagram to load another 12. second check
-        # here in case element has gone stale
-        last_follower = waiter.find_element(driver, follower_css.format(follower_index))
-        driver.execute_script("arguments[0].scrollIntoView();", last_follower)
+    return followers, following
 
 
 if __name__ == "__main__":
     # read in account of interest details
-    account = str(input("account name: "))
-    num_followers = int(input("account num followers: "))
-    num_following = int(input("account num following: "))
+    account = str(input("target account name: "))
+    mode = str(input("mode? choose one: manual / scrape: "))
 
-    # read in user variables
-    username, password, driver_path = read_keys()
+    # MODE: MANUAL
+    if mode == "manual":
+        followers_list, following_list = manual()
 
-    # create web driver
-    driver = webdriver.Chrome(executable_path=driver_path)
+    # MODE: SCRAPE
+    else:
+        num_followers = int(input("account num followers: "))
+        num_following = int(input("account num following: "))
 
-    # scraping
-    try:
-        login(driver, username, password)
-        print("account: ", account, "\n")
+        # read in user variables
+        username, password, driver_path = read_keys()
 
-        # get followers for the account
-        followers_list = []
-        print("scraping followers...\n")
-        for count, follower in enumerate(scrape_followers(driver, account=account), 1):
-            followers_list.append(follower)
-            if count >= num_followers:
-                break
+        # create web driver
+        driver = webdriver.Chrome(executable_path=driver_path)
 
-        # get following for the account
-        following_list = []
-        print("scraping following...\n")
-        for count, following in enumerate(scrape_following(driver, account=account), 1):
-            following_list.append(following)
-            if count >= num_following:
-                break
-    finally:
-        driver.quit()
+        # scraping
+        try:
+            login(driver, username, password)
+            print("account: ", account, "\n")
+
+            # get followers for the account
+            followers_list = []
+            print("scraping followers...\n")
+            for count, follower in enumerate(scrape(driver, account, "follower", num_followers), 1):
+                followers_list.append(follower)
+                print(count)
+                if count >= num_followers:
+                    break
+
+            # get following for the account
+            following_list = []
+            print("scraping following...\n")
+            for count, following in enumerate(scrape(driver, account, "following", num_following), 1):
+                following_list.append(following)
+                if count >= num_following:
+                    break
+        finally:
+            driver.quit()
 
     ## ANALYTICS
     print("analyzing activity for {}...\n".format(account))
@@ -142,7 +170,7 @@ if __name__ == "__main__":
     else:
         unfollowers = diff(set(cache), set(followers_list))
         print("\n5. unfollowers since last cache:", len(unfollowers))
-        # for u in unfollowers: print(u) # comment/uncomment to print list
+        for u in unfollowers: print(u) # comment/uncomment to print list
 
     # copy followers_list into followers_cache.txt?
     answer = str(input("would you like to cache this data? y/n: "))
